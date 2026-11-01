@@ -1,4 +1,5 @@
 """Store verified evidence (the quoted offending code line) with each finding."""
+
 import sqlalchemy as sa
 from alembic import op
 

@@ -6,8 +6,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import (JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine,
-                        delete, event, inspect)
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine, delete, event, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./reviewai.db")
@@ -31,6 +30,7 @@ class Base(DeclarativeBase):
 
 class Review(Base):
     """Metadata + findings only. Submitted source code is NOT persisted."""
+
     __tablename__ = "reviews"
     id: Mapped[str] = mapped_column(String, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, index=True, default=now)
@@ -46,8 +46,8 @@ class Review(Base):
     pr_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     head_sha: Mapped[str | None] = mapped_column(String, nullable=True)
     items: Mapped[list["FindingRow"]] = relationship(
-        back_populates="review", cascade="all, delete-orphan", passive_deletes=True,
-        order_by="FindingRow.seq")
+        back_populates="review", cascade="all, delete-orphan", passive_deletes=True, order_by="FindingRow.seq"
+    )
 
 
 class FindingRow(Base):

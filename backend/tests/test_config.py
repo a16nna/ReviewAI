@@ -4,8 +4,10 @@ from app.config import load_dotenv
 
 def test_dotenv_loader_parses_quotes_comments_and_never_overrides(tmp_path, monkeypatch):
     f = tmp_path / ".env"
-    f.write_text('# comment\nRA_TEST_A=plain\nRA_TEST_B="quoted value"\nRA_TEST_C=\nRA_TEST_D=from-file\nbad line\n',
-                 encoding="utf-8-sig")
+    f.write_text(
+        '# comment\nRA_TEST_A=plain\nRA_TEST_B="quoted value"\nRA_TEST_C=\nRA_TEST_D=from-file\nbad line\n',
+        encoding="utf-8-sig",
+    )
     monkeypatch.delenv("REVIEWAI_SKIP_DOTENV")
     monkeypatch.setenv("RA_TEST_D", "from-environment")
     try:

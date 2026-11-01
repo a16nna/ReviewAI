@@ -1,4 +1,5 @@
 """Initial schema: the original single-table design (findings stored as JSON on the review)."""
+
 import sqlalchemy as sa
 from alembic import op
 

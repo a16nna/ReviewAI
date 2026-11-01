@@ -1,4 +1,5 @@
 """Gemini provider tests. A fake client replaces the SDK, so no API key or network is needed."""
+
 import json
 from types import SimpleNamespace
 
@@ -18,9 +19,19 @@ def reply(*findings):
 
 
 def item(**kw):
-    base = dict(category="Security", severity="High", title="Use of eval", description="eval runs user input",
-                impact="RCE", line_start=2, line_end=2, remediation="Use ast.literal_eval",
-                confidence="high", certainty="confirmed", evidence="x = eval(input())")
+    base = dict(
+        category="Security",
+        severity="High",
+        title="Use of eval",
+        description="eval runs user input",
+        impact="RCE",
+        line_start=2,
+        line_end=2,
+        remediation="Use ast.literal_eval",
+        confidence="high",
+        certainty="confirmed",
+        evidence="x = eval(input())",
+    )
     base.update(kw)
     return base
 
@@ -82,19 +93,22 @@ def api_error(code, status="", msg="boom sk-SECRET-123"):
     return e
 
 
-@pytest.mark.parametrize("exc,expected", [
-    (api_error(400, "INVALID_ARGUMENT", "API key not valid. sk-SECRET-123"), "API key"),
-    (api_error(401, "UNAUTHENTICATED"), "API key"),
-    (api_error(403, "PERMISSION_DENIED"), "API key"),
-    (api_error(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric"), "quota exhausted"),
-    (api_error(429, "RESOURCE_EXHAUSTED", "Too many requests"), "rate limit"),
-    (api_error(404, "NOT_FOUND"), "GEMINI_MODEL"),
-    (api_error(504, "DEADLINE_EXCEEDED"), "timed out"),
-    (api_error(503, "UNAVAILABLE"), "unavailable"),
-    (type("ReadTimeout", (Exception,), {})("t"), "timed out"),
-    (type("ConnectError", (Exception,), {})("dns"), "network"),
-    (ConnectionError("down"), "network"),
-])
+@pytest.mark.parametrize(
+    "exc,expected",
+    [
+        (api_error(400, "INVALID_ARGUMENT", "API key not valid. sk-SECRET-123"), "API key"),
+        (api_error(401, "UNAUTHENTICATED"), "API key"),
+        (api_error(403, "PERMISSION_DENIED"), "API key"),
+        (api_error(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric"), "quota exhausted"),
+        (api_error(429, "RESOURCE_EXHAUSTED", "Too many requests"), "rate limit"),
+        (api_error(404, "NOT_FOUND"), "GEMINI_MODEL"),
+        (api_error(504, "DEADLINE_EXCEEDED"), "timed out"),
+        (api_error(503, "UNAVAILABLE"), "unavailable"),
+        (type("ReadTimeout", (Exception,), {})("t"), "timed out"),
+        (type("ConnectError", (Exception,), {})("dns"), "network"),
+        (ConnectionError("down"), "network"),
+    ],
+)
 def test_provider_failures_are_mapped_and_secrets_never_leak(exc, expected):
     with pytest.raises(ai.AIError, match=expected) as e:
         fake(exc=exc)[0].review("x", "python")
@@ -119,7 +133,10 @@ def test_key_with_working_sdk_selects_gemini_and_model_is_configurable(monkeypat
     class FakeClient:
         def __init__(self, **kw):
             self.kw = kw
-    import sys, types
+
+    import sys
+    import types
+
     genai = types.ModuleType("google.genai")
     genai.Client = FakeClient
     gtypes = types.ModuleType("google.genai.types")
@@ -142,9 +159,11 @@ def test_key_with_working_sdk_selects_gemini_and_model_is_configurable(monkeypat
 
 def test_sdk_import_failure_reports_unavailable(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "real-looking-key")
+
     class NoSdk:
         def __init__(self, *a, **k):
             raise ImportError("google-genai missing")
+
     monkeypatch.setattr(ai, "GeminiProvider", NoSdk)
     st = ai.provider_status()
     assert st["state"] == "unavailable" and "google-genai" in st["message"]
@@ -169,7 +188,12 @@ def test_gemini_findings_are_stored_and_static_findings_stay_separate(monkeypatc
         by_source.setdefault(f["source"], []).append(f)
     gem = by_source["ai"][0]
     assert body["provider"] == "gemini" and body["is_mock"] is False and body["ai_error"] is None
-    assert (gem["title"], gem["line_start"], gem["evidence"], gem["severity"]) == ("Use of eval", 2, "x = eval(input())", "High")
+    assert (gem["title"], gem["line_start"], gem["evidence"], gem["severity"]) == (
+        "Use of eval",
+        2,
+        "x = eval(input())",
+        "High",
+    )
     assert {f["analyzer"] for f in by_source["static_analysis"]} <= {"ruff", "bandit"} and by_source["static_analysis"]
     stored = c.get(f"/reviews/{body['id']}/findings", params={"source": "ai"}).json()
     assert len(stored) == 1 and stored[0]["evidence"] == "x = eval(input())"

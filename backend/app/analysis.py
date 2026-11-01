@@ -1,4 +1,5 @@
 """Deterministic static analysis in a throw-away temp dir. Submitted code is never executed."""
+
 import importlib.util
 import json
 import os
@@ -50,8 +51,15 @@ def _limit_resources(pid: int, cpu_seconds: int) -> None:
 def _run(argv: list[str], cwd: str, timeout: int = TIMEOUT) -> tuple[str, str]:
     # argv list, shell=False, fixed analyzers, our own temp files -> safe
     p = subprocess.Popen(  # nosec B603
-        argv, cwd=cwd, env=_clean_env(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        encoding="utf-8", errors="replace", shell=False)
+        argv,
+        cwd=cwd,
+        env=_clean_env(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        shell=False,
+    )
     _limit_resources(p.pid, timeout)
     try:
         out, err = p.communicate(timeout=timeout)  # wall-clock timeout works on every platform
@@ -81,8 +89,11 @@ def _find_java() -> str | None:
 
 
 def _find_cppcheck() -> str | None:
-    return _find("cppcheck", "CPPCHECK_PATH", [r"C:\Program Files\Cppcheck\cppcheck.exe",
-                                              r"C:\Program Files (x86)\Cppcheck\cppcheck.exe"])
+    return _find(
+        "cppcheck",
+        "CPPCHECK_PATH",
+        [r"C:\Program Files\Cppcheck\cppcheck.exe", r"C:\Program Files (x86)\Cppcheck\cppcheck.exe"],
+    )
 
 
 def _py_mod(name: str):
@@ -94,8 +105,11 @@ def _need(path: Path, label: str):
 
 
 def _chk_eslint():
-    return (None if _find_node() else "node is not installed") or _need(ESLINT, "ESLint") \
+    return (
+        (None if _find_node() else "node is not installed")
+        or _need(ESLINT, "ESLint")
         or _need(ESLINT_CFG, "ESLint config")
+    )
 
 
 def _chk_checkstyle():
@@ -111,16 +125,27 @@ def _f(analyzer, i, **kw) -> Finding:
 
 
 def _ruff(d: str, fname: str) -> list[Finding]:
-    out, _ = _run([sys.executable, "-m", "ruff", "check", "--output-format", "json", "--no-cache",
-                   "--select", "E,F,B", fname], d)
+    out, _ = _run(
+        [sys.executable, "-m", "ruff", "check", "--output-format", "json", "--no-cache", "--select", "E,F,B", fname], d
+    )
     res = []
     for i, r in enumerate(json.loads(out or "[]")):
         code = r.get("code") or "syntax-error"
-        res.append(_f("ruff", i, category="Maintainability", rule_id=code,
-                      severity="Medium" if code.startswith("F") or code == "syntax-error" else "Low",
-                      title=f"{code}: {r['message']}", description=r["message"],
-                      line_start=r["location"]["row"], line_end=r["end_location"]["row"],
-                      confidence="high", certainty="confirmed" if code == "syntax-error" else "possible"))
+        res.append(
+            _f(
+                "ruff",
+                i,
+                category="Maintainability",
+                rule_id=code,
+                severity="Medium" if code.startswith("F") or code == "syntax-error" else "Low",
+                title=f"{code}: {r['message']}",
+                description=r["message"],
+                line_start=r["location"]["row"],
+                line_end=r["end_location"]["row"],
+                confidence="high",
+                certainty="confirmed" if code == "syntax-error" else "possible",
+            )
+        )
     return res
 
 
@@ -128,28 +153,58 @@ def _bandit(d: str, fname: str) -> list[Finding]:
     out, _ = _run([sys.executable, "-m", "bandit", "-f", "json", "-q", fname], d)
     sev = {"HIGH": "High", "MEDIUM": "Medium", "LOW": "Low"}
     conf = {"HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
-    return [_f("bandit", i, category="Security", rule_id=r["test_id"],
-               severity=sev.get(r["issue_severity"], "Low"),
-               title=f"{r['test_id']}: {r['test_name']}", description=r["issue_text"],
-               line_start=r["line_number"], line_end=r["line_number"],
-               confidence=conf.get(r["issue_confidence"], "low"))
-            for i, r in enumerate(json.loads(out or "{}").get("results", []))]
+    return [
+        _f(
+            "bandit",
+            i,
+            category="Security",
+            rule_id=r["test_id"],
+            severity=sev.get(r["issue_severity"], "Low"),
+            title=f"{r['test_id']}: {r['test_name']}",
+            description=r["issue_text"],
+            line_start=r["line_number"],
+            line_end=r["line_number"],
+            confidence=conf.get(r["issue_confidence"], "low"),
+        )
+        for i, r in enumerate(json.loads(out or "{}").get("results", []))
+    ]
 
 
 def _eslint(d: str, fname: str) -> list[Finding]:
-    out, _ = _run([_find_node(), str(ESLINT), "--config", str(ESLINT_CFG), "--no-config-lookup",
-                   "--format", "json", "--no-warn-ignored", fname], d)
+    out, _ = _run(
+        [
+            _find_node(),
+            str(ESLINT),
+            "--config",
+            str(ESLINT_CFG),
+            "--no-config-lookup",
+            "--format",
+            "json",
+            "--no-warn-ignored",
+            fname,
+        ],
+        d,
+    )
     msgs = json.loads(out)[0]["messages"]
     res = []
     for i, m in enumerate(msgs):
         rule = m.get("ruleId") or "parse-error"
         security = rule.startswith("security/") or rule in ("no-eval", "no-implied-eval", "no-new-func")
-        res.append(_f("eslint", i, category="Security" if security else "Maintainability", rule_id=rule,
-                      severity="Medium" if security or m.get("severity") == 2 else "Low",
-                      title=f"{rule}: {m['message']}"[:300], description=m["message"],
-                      line_start=m.get("line"), line_end=m.get("endLine") or m.get("line"),
-                      confidence="high" if m.get("fatal") else "medium",
-                      certainty="confirmed" if m.get("fatal") else "possible"))
+        res.append(
+            _f(
+                "eslint",
+                i,
+                category="Security" if security else "Maintainability",
+                rule_id=rule,
+                severity="Medium" if security or m.get("severity") == 2 else "Low",
+                title=f"{rule}: {m['message']}"[:300],
+                description=m["message"],
+                line_start=m.get("line"),
+                line_end=m.get("endLine") or m.get("line"),
+                confidence="high" if m.get("fatal") else "medium",
+                certainty="confirmed" if m.get("fatal") else "possible",
+            )
+        )
     return res
 
 
@@ -161,35 +216,73 @@ def _checkstyle(d: str, fname: str) -> list[Finding]:
     for i, e in enumerate(root.iter("error")):
         rule = (e.get("source") or "checkstyle").rsplit(".", 1)[-1]
         line = int(e.get("line")) if e.get("line") else None
-        res.append(_f("checkstyle", i, category="Maintainability", rule_id=rule,
-                      severity=sev.get(e.get("severity", "error"), "Low"),
-                      title=f"{rule}: {e.get('message', '')}"[:300], description=e.get("message", ""),
-                      line_start=line, line_end=line, confidence="medium"))
+        res.append(
+            _f(
+                "checkstyle",
+                i,
+                category="Maintainability",
+                rule_id=rule,
+                severity=sev.get(e.get("severity", "error"), "Low"),
+                title=f"{rule}: {e.get('message', '')}"[:300],
+                description=e.get("message", ""),
+                line_start=line,
+                line_end=line,
+                confidence="medium",
+            )
+        )
     return res
 
 
 def _cppcheck(d: str, fname: str) -> list[Finding]:
-    _, err = _run([_find_cppcheck(), "--enable=warning,style,performance,portability", "--language=c++",
-                   "--template={line}|{severity}|{id}|{message}", "--quiet", fname], d)
-    sev = {"error": "High", "warning": "Medium", "style": "Low", "performance": "Low",
-           "portability": "Low", "information": "Informational"}
+    _, err = _run(
+        [
+            _find_cppcheck(),
+            "--enable=warning,style,performance,portability",
+            "--language=c++",
+            "--template={line}|{severity}|{id}|{message}",
+            "--quiet",
+            fname,
+        ],
+        d,
+    )
+    sev = {
+        "error": "High",
+        "warning": "Medium",
+        "style": "Low",
+        "performance": "Low",
+        "portability": "Low",
+        "information": "Informational",
+    }
     res = []
     for line in err.split("\n"):
         parts = line.split("|", 3)
         if len(parts) != 4 or not parts[0].isdigit():
             continue
         ln, s, rid, msg = parts
-        res.append(_f("cppcheck", len(res), category="Security" if s == "error" else "Maintainability",
-                      rule_id=rid, severity=sev.get(s, "Low"), title=f"{rid}: {msg}"[:300], description=msg,
-                      line_start=int(ln), line_end=int(ln), confidence="medium",
-                      certainty="confirmed" if s == "error" else "possible"))
+        res.append(
+            _f(
+                "cppcheck",
+                len(res),
+                category="Security" if s == "error" else "Maintainability",
+                rule_id=rid,
+                severity=sev.get(s, "Low"),
+                title=f"{rid}: {msg}"[:300],
+                description=msg,
+                line_start=int(ln),
+                line_end=int(ln),
+                confidence="medium",
+                certainty="confirmed" if s == "error" else "possible",
+            )
+        )
     return res
 
 
 # language -> (filename, [(analyzer name, availability check, runner)])
 REGISTRY = {
-    "python": ("submission.py", [("ruff", lambda: _py_mod("ruff"), _ruff),
-                                 ("bandit", lambda: _py_mod("bandit"), _bandit)]),
+    "python": (
+        "submission.py",
+        [("ruff", lambda: _py_mod("ruff"), _ruff), ("bandit", lambda: _py_mod("bandit"), _bandit)],
+    ),
     "javascript": ("submission.js", [("eslint", _chk_eslint, _eslint)]),
     "typescript": ("submission.ts", [("eslint", _chk_eslint, _eslint)]),
     "java": ("Submission.java", [("checkstyle", _chk_checkstyle, _checkstyle)]),
@@ -198,8 +291,10 @@ REGISTRY = {
 
 
 def availability() -> dict[str, dict[str, str]]:
-    return {lang: {name: (chk() and f"unavailable: {chk()}") or "available" for name, chk, _ in specs}
-            for lang, (_, specs) in REGISTRY.items()}
+    return {
+        lang: {name: (chk() and f"unavailable: {chk()}") or "available" for name, chk, _ in specs}
+        for lang, (_, specs) in REGISTRY.items()
+    }
 
 
 def analyze(code: str, language: str) -> tuple[list[Finding], dict[str, str]]:

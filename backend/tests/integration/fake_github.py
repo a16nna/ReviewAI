@@ -1,4 +1,5 @@
 """TEST-ONLY stand-in for GitHub used by verify_stack.py. Never imported by the application."""
+
 import base64
 from urllib.parse import parse_qs
 from fastapi import FastAPI, HTTPException, Request
@@ -44,7 +45,9 @@ def branches(request: Request):
 @app.get("/repos/fake/repo/pulls")
 def pulls(request: Request):
     auth(request)
-    return [{"number": 1, "title": "Add app", "user": {"login": "dev"}, "head": {"ref": "feat"}, "base": {"ref": "main"}}]
+    return [
+        {"number": 1, "title": "Add app", "user": {"login": "dev"}, "head": {"ref": "feat"}, "base": {"ref": "main"}}
+    ]
 
 
 @app.get("/repos/fake/repo/pulls/{n}")

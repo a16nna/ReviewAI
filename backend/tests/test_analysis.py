@@ -11,10 +11,13 @@ from app import analysis
 pytestmark = pytest.mark.real_analyzers
 
 AV = analysis.availability()
-CASES = [("python", "x = eval(input())\n", "B307"), ("javascript", "var x = eval(prompt());\n", "no-eval"),
-         ("typescript", "const y: number = eval('1');\n", "no-eval"),
-         ("java", 'public class A { void f(){ try { } catch (Exception e) { } } }\n', "EmptyCatchBlockCheck"),
-         ("cpp", "#include <cstring>\nint main(){ char b[2]; strcpy(b,\"hello\"); }\n", "bufferAccessOutOfBounds")]
+CASES = [
+    ("python", "x = eval(input())\n", "B307"),
+    ("javascript", "var x = eval(prompt());\n", "no-eval"),
+    ("typescript", "const y: number = eval('1');\n", "no-eval"),
+    ("java", "public class A { void f(){ try { } catch (Exception e) { } } }\n", "EmptyCatchBlockCheck"),
+    ("cpp", '#include <cstring>\nint main(){ char b[2]; strcpy(b,"hello"); }\n', "bufferAccessOutOfBounds"),
+]
 
 
 @pytest.mark.parametrize("lang,code,rule", CASES)
@@ -37,6 +40,7 @@ def test_timeout_and_garbage_output(monkeypatch):
 
     def slow(*a, **k):
         raise subprocess.TimeoutExpired("x", 1)
+
     monkeypatch.setattr(analysis, "_run", slow)
     assert analysis.analyze("x=1", "python")[1] == {"ruff": "timeout", "bandit": "timeout"}
     monkeypatch.setattr(analysis, "_run", lambda *a, **k: ("garbage", ""))
@@ -76,6 +80,7 @@ def test_missing_ruff_and_bandit_are_reported_unavailable_not_successful(monkeyp
 def test_review_api_still_works_when_python_analyzers_are_missing(monkeypatch):
     from fastapi.testclient import TestClient
     from app.main import app
+
     monkeypatch.setattr(analysis, "_py_mod", lambda name: f"{name} is not installed")
     c = TestClient(app)
     body = c.post("/reviews", json={"code": "x = eval(input())\n", "language": "python"}).json()

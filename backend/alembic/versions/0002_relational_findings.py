@@ -1,4 +1,5 @@
 """Move findings into their own table; add PR metadata and webhook delivery log."""
+
 import json
 import sqlalchemy as sa
 from alembic import op
@@ -67,16 +68,31 @@ def upgrade():
     # Carry over records written by the old JSON-column design.
     for rid, items in legacy:
         for seq, f in enumerate(items):
-            op.bulk_insert(findings, [{
-                "review_id": rid, "seq": seq, "finding_key": f.get("id") or f"f-{seq}",
-                "source": f.get("source") or "ai", "analyzer": None, "rule_id": None,
-                "category": f.get("category") or "General", "severity": f.get("severity") or "Informational",
-                "title": f.get("title") or "(untitled)", "description": f.get("description") or "",
-                "impact": f.get("impact") or "", "file_path": f.get("file_path"),
-                "line_start": f.get("line_start"), "line_end": f.get("line_end"),
-                "remediation": f.get("remediation") or "", "corrected_code": f.get("corrected_code"),
-                "confidence": f.get("confidence") or "medium", "certainty": "possible",
-            }])
+            op.bulk_insert(
+                findings,
+                [
+                    {
+                        "review_id": rid,
+                        "seq": seq,
+                        "finding_key": f.get("id") or f"f-{seq}",
+                        "source": f.get("source") or "ai",
+                        "analyzer": None,
+                        "rule_id": None,
+                        "category": f.get("category") or "General",
+                        "severity": f.get("severity") or "Informational",
+                        "title": f.get("title") or "(untitled)",
+                        "description": f.get("description") or "",
+                        "impact": f.get("impact") or "",
+                        "file_path": f.get("file_path"),
+                        "line_start": f.get("line_start"),
+                        "line_end": f.get("line_end"),
+                        "remediation": f.get("remediation") or "",
+                        "corrected_code": f.get("corrected_code"),
+                        "confidence": f.get("confidence") or "medium",
+                        "certainty": "possible",
+                    }
+                ],
+            )
     op.get_bind().execute(sa.text("UPDATE reviews SET findings = NULL"))
 
 

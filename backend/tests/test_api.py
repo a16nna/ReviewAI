@@ -1,5 +1,6 @@
 import os
 import tempfile
+
 os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp()}/t.db"
 os.environ.pop("GEMINI_API_KEY", None)
 from fastapi.testclient import TestClient  # noqa: E402
@@ -45,8 +46,10 @@ def test_analyzer_status_is_reported_honestly():
 def test_ai_failure_keeps_static_results(monkeypatch):
     class Boom:
         name, is_mock = "gemini", False
+
         def review(self, code, language):
             raise ai.AIError("timeout")
+
     monkeypatch.setattr(ai, "get_provider", lambda: Boom())
     body = c.post("/reviews", json={"code": BAD, "language": "python"}).json()
     assert body["ai_error"] and body["findings"]
@@ -55,6 +58,7 @@ def test_ai_failure_keeps_static_results(monkeypatch):
 def test_ai_output_parsing_rejects_malformed():
     from app.schemas import AIResult
     import pytest
+
     with pytest.raises(ValueError):
         AIResult.model_validate_json('{"findings":[{"severity":"Nope"}]}')
     assert AIFinding(category="x", severity="Low", title="t", description="d")

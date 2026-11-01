@@ -12,22 +12,38 @@ c = TestClient(app)
 def test_legacy_json_database_is_migrated(tmp_path):
     path = tmp_path / "legacy.db"
     con = sqlite3.connect(path)
-    con.execute("CREATE TABLE reviews (id VARCHAR PRIMARY KEY, created_at DATETIME NOT NULL, language VARCHAR NOT NULL,"
-                " provider VARCHAR NOT NULL, is_mock BOOLEAN NOT NULL, code_chars INTEGER NOT NULL,"
-                " analyzers JSON NOT NULL, ai_error VARCHAR, findings JSON NOT NULL)")
-    old = [{"id": "ruff-0", "category": "Maintainability", "severity": "Low", "title": "F401", "description": "unused",
-            "impact": "", "line_start": 1, "line_end": 1, "remediation": "", "confidence": "high",
-            "source": "static_analysis"}]
-    con.execute("INSERT INTO reviews VALUES ('old1','2026-01-01 00:00:00','python','mock',1,10,'{}',NULL,?)",
-                (json.dumps(old),))
+    con.execute(
+        "CREATE TABLE reviews (id VARCHAR PRIMARY KEY, created_at DATETIME NOT NULL, language VARCHAR NOT NULL,"
+        " provider VARCHAR NOT NULL, is_mock BOOLEAN NOT NULL, code_chars INTEGER NOT NULL,"
+        " analyzers JSON NOT NULL, ai_error VARCHAR, findings JSON NOT NULL)"
+    )
+    old = [
+        {
+            "id": "ruff-0",
+            "category": "Maintainability",
+            "severity": "Low",
+            "title": "F401",
+            "description": "unused",
+            "impact": "",
+            "line_start": 1,
+            "line_end": 1,
+            "remediation": "",
+            "confidence": "high",
+            "source": "static_analysis",
+        }
+    ]
+    con.execute(
+        "INSERT INTO reviews VALUES ('old1','2026-01-01 00:00:00','python','mock',1,10,'{}',NULL,?)", (json.dumps(old),)
+    )
     con.commit()
     con.close()
     appdb.init_db(f"sqlite:///{path}")
     con = sqlite3.connect(path)
     assert con.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0003"
     assert len(list(tmp_path.glob("legacy.db.bak-*"))) == 1
-    assert con.execute("SELECT review_id, title, severity, source FROM findings").fetchall() == \
-        [("old1", "F401", "Low", "static_analysis")]
+    assert con.execute("SELECT review_id, title, severity, source FROM findings").fetchall() == [
+        ("old1", "F401", "Low", "static_analysis")
+    ]
     assert con.execute("SELECT findings, source_kind FROM reviews").fetchone() == (None, "manual")
     con.close()
     appdb.init_db(f"sqlite:///{path}")  # idempotent
@@ -41,10 +57,12 @@ def test_fresh_database_gets_full_schema(tmp_path):
 
 def test_delete_cascades_to_findings():
     rid = c.post("/reviews", json={"code": "x = eval(input())\n", "language": "python"}).json()["id"]
+
     def count():
         with appdb.SessionLocal() as s:
             q = select(func.count()).select_from(appdb.FindingRow).where(appdb.FindingRow.review_id == rid)
             return s.scalar(q)
+
     assert count() > 0
     assert c.delete(f"/reviews/{rid}").status_code == 204
     assert count() == 0
@@ -83,6 +101,7 @@ def test_findings_endpoint_filters_and_search():
 
 def test_origin_check_and_rate_limit(monkeypatch):
     from app import ratelimit
+
     body = {"code": "x=1", "language": "python"}
     assert c.post("/reviews", json=body, headers={"Origin": "http://evil.example"}).status_code == 403
     assert c.post("/reviews", json=body, headers={"Origin": "http://localhost:5173"}).status_code == 201
@@ -95,15 +114,23 @@ def test_origin_check_and_rate_limit(monkeypatch):
 def test_odd_legacy_rows_migrate_without_crashing_and_a_backup_is_written(tmp_path):
     path = tmp_path / "odd.db"
     con = sqlite3.connect(path)
-    con.execute("CREATE TABLE reviews (id VARCHAR PRIMARY KEY, created_at DATETIME NOT NULL, language VARCHAR NOT NULL,"
-                " provider VARCHAR NOT NULL, is_mock BOOLEAN NOT NULL, code_chars INTEGER NOT NULL,"
-                " analyzers JSON NOT NULL, ai_error VARCHAR, findings JSON NOT NULL)")
+    con.execute(
+        "CREATE TABLE reviews (id VARCHAR PRIMARY KEY, created_at DATETIME NOT NULL, language VARCHAR NOT NULL,"
+        " provider VARCHAR NOT NULL, is_mock BOOLEAN NOT NULL, code_chars INTEGER NOT NULL,"
+        " analyzers JSON NOT NULL, ai_error VARCHAR, findings JSON NOT NULL)"
+    )
     nulls = json.dumps([{"title": None, "severity": None, "id": None}, {"title": "ok"}])
-    rows = [("empty", "[]"), ("nulls", nulls), ("garbage", "this is not json"), ("notalist", '{"a": 1}'),
-            ("mixed", json.dumps(["str", 5, {"title": "T"}]))]
+    rows = [
+        ("empty", "[]"),
+        ("nulls", nulls),
+        ("garbage", "this is not json"),
+        ("notalist", '{"a": 1}'),
+        ("mixed", json.dumps(["str", 5, {"title": "T"}])),
+    ]
     for rid, raw in rows:
-        con.execute("INSERT INTO reviews VALUES (?, '2026-01-01 00:00:00', 'python', 'mock', 1, 1, '{}', NULL, ?)",
-                    (rid, raw))
+        con.execute(
+            "INSERT INTO reviews VALUES (?, '2026-01-01 00:00:00', 'python', 'mock', 1, 1, '{}', NULL, ?)", (rid, raw)
+        )
     con.commit()
     con.close()
     before = path.read_bytes()
@@ -112,8 +139,10 @@ def test_odd_legacy_rows_migrate_without_crashing_and_a_backup_is_written(tmp_pa
     got = dict(con.execute("SELECT review_id, count(*) FROM findings GROUP BY review_id").fetchall())
     assert got == {"nulls": 2, "mixed": 1}
     assert con.execute("SELECT count(*) FROM reviews").fetchone()[0] == 5  # no review lost
-    assert con.execute("SELECT severity, title FROM findings WHERE review_id='nulls' ORDER BY seq").fetchall() == \
-        [("Informational", "(untitled)"), ("Informational", "ok")]
+    assert con.execute("SELECT severity, title FROM findings WHERE review_id='nulls' ORDER BY seq").fetchall() == [
+        ("Informational", "(untitled)"),
+        ("Informational", "ok"),
+    ]
     con.close()
     backups = list(tmp_path.glob("odd.db.bak-*"))
     assert len(backups) == 1 and backups[0].read_bytes() == before  # pre-migration copy is byte-identical

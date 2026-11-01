@@ -14,8 +14,8 @@ def fake(reply=None, exc=None, finish="STOP", block=None):
             if exc:
                 raise exc
             cand = SimpleNamespace(finish_reason=finish)
-            return SimpleNamespace(text=reply, candidates=[cand],
-                                   prompt_feedback=SimpleNamespace(block_reason=block))
+            return SimpleNamespace(text=reply, candidates=[cand], prompt_feedback=SimpleNamespace(block_reason=block))
+
     p = ai.GeminiProvider.__new__(ai.GeminiProvider)
     p.model = "test-model"
     p._client = SimpleNamespace(models=Models())
@@ -40,15 +40,24 @@ def test_malformed_output_raises_aierror():
 
 
 def test_invalid_findings_are_dropped_not_repaired():
-    out = ai.parse_findings('```json\n{"findings":[{"severity":"Nope"},'
-                            '{"category":"c","severity":"Low","title":"t","description":"d"}]}\n```')
+    out = ai.parse_findings(
+        '```json\n{"findings":[{"severity":"Nope"},'
+        '{"category":"c","severity":"Low","title":"t","description":"d"}]}\n```'
+    )
     assert len(out) == 1 and out[0].certainty == "possible"
     with pytest.raises(ValueError):
         ai.parse_findings('{"findings":[{"severity":"Nope"}]}')
 
 
-@pytest.mark.parametrize("name,msg", [("RateLimitError", "rate limit"), ("APITimeoutError", "timed out"),
-                                      ("AuthenticationError", "API key"), ("APIConnectionError", "unavailable")])
+@pytest.mark.parametrize(
+    "name,msg",
+    [
+        ("RateLimitError", "rate limit"),
+        ("APITimeoutError", "timed out"),
+        ("AuthenticationError", "API key"),
+        ("APIConnectionError", "unavailable"),
+    ],
+)
 def test_provider_failures_are_classified(name, msg):
     exc = type(name, (Exception,), {})("secret-detail-sk-123")
     with pytest.raises(ai.AIError, match=msg) as e:

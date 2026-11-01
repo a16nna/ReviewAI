@@ -22,7 +22,7 @@ SYSTEM = (
     '{"findings":[{"category","severity","title","description","impact","line_start","line_end",'
     '"remediation","corrected_code","confidence","certainty","evidence"}]}. '
     "severity is Critical, High, Medium, Low or Informational; confidence is high, medium or low; "
-    "certainty is confirmed or possible. Return {\"findings\":[]} if you find nothing."
+    'certainty is confirmed or possible. Return {"findings":[]} if you find nothing.'
 )
 
 
@@ -49,7 +49,7 @@ def parse_findings(text: str) -> list[AIFinding]:
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end < start:
         raise ValueError("no JSON object in output")
-    data = json.loads(text[start:end + 1])
+    data = json.loads(text[start : end + 1])
     items = data.get("findings") if isinstance(data, dict) else None
     if not isinstance(items, list):
         raise ValueError("missing findings list")
@@ -64,10 +64,17 @@ def parse_findings(text: str) -> list[AIFinding]:
     return out
 
 
-_TIMEOUTS = {"APITimeoutError", "Timeout", "TimeoutException", "ReadTimeout", "ConnectTimeout",
-             "WriteTimeout", "PoolTimeout", "TimeoutError"}
-_NETWORK = {"ConnectError", "ConnectionError", "RemoteProtocolError", "ReadError",
-            "NetworkError", "gaierror"}
+_TIMEOUTS = {
+    "APITimeoutError",
+    "Timeout",
+    "TimeoutException",
+    "ReadTimeout",
+    "ConnectTimeout",
+    "WriteTimeout",
+    "PoolTimeout",
+    "TimeoutError",
+}
+_NETWORK = {"ConnectError", "ConnectionError", "RemoteProtocolError", "ReadError", "NetworkError", "gaierror"}
 
 
 def _classify(e: Exception) -> str:
@@ -81,9 +88,12 @@ def _classify(e: Exception) -> str:
         if "quota" in text or "billing" in text:
             return "AI provider quota exhausted; check your Gemini plan and billing"
         return "AI provider rate limit reached; try again later"
-    if code in (401, 403) or status in ("UNAUTHENTICATED", "PERMISSION_DENIED") \
-            or n in ("AuthenticationError", "PermissionDeniedError") \
-            or (code == 400 and ("api key" in text or "api_key" in text)):
+    if (
+        code in (401, 403)
+        or status in ("UNAUTHENTICATED", "PERMISSION_DENIED")
+        or n in ("AuthenticationError", "PermissionDeniedError")
+        or (code == 400 and ("api key" in text or "api_key" in text))
+    ):
         return "AI provider rejected the API key"
     if code == 404 or status == "NOT_FOUND":
         return "AI model not found; check GEMINI_MODEL"
@@ -91,7 +101,13 @@ def _classify(e: Exception) -> str:
         return "AI provider timed out"
     if n in _NETWORK or isinstance(e, ConnectionError):
         return "AI provider unreachable (network error)"
-    if (code is not None and code >= 500) or n in ("InternalServerError", "APIStatusError", "APIConnectionError", "OverloadedError", "ServerError"):
+    if (code is not None and code >= 500) or n in (
+        "InternalServerError",
+        "APIStatusError",
+        "APIConnectionError",
+        "OverloadedError",
+        "ServerError",
+    ):
         return "AI provider unavailable"
     if code == 400:
         return "AI provider rejected the request"
@@ -106,6 +122,7 @@ def ground(findings: list[AIFinding], line_map: dict[int, str], changed: set[int
     A finding keeps its lines only if they exist and the quoted evidence appears on them. If the
     claimed lines are wrong but the evidence matches exactly one line, that line is used instead.
     """
+
     def norm(s: str) -> str:
         return " ".join(s.split())
 
@@ -146,11 +163,18 @@ class MockProvider:
     is_mock = True
 
     def review(self, code: str, language: str) -> list[AIFinding]:
-        return [AIFinding(
-            category="Notice", severity="Informational",
-            title="[MOCK] No real AI analysis performed",
-            description="No GEMINI_API_KEY is configured, so no real AI review ran. This placeholder is not an AI result.",
-            confidence="high")]
+        return [
+            AIFinding(
+                category="Notice",
+                severity="Informational",
+                title="[MOCK] No real AI analysis performed",
+                description=(
+                    "No GEMINI_API_KEY is configured, so no real AI review ran. "
+                    "This placeholder is not an AI result."
+                ),
+                confidence="high",
+            )
+        ]
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
@@ -158,15 +182,29 @@ GEMINI_TIMEOUT_S = 60
 _STR, _INT = {"type": "STRING"}, {"type": "INTEGER", "nullable": True}
 RESPONSE_SCHEMA = {
     "type": "OBJECT",
-    "properties": {"findings": {"type": "ARRAY", "items": {
-        "type": "OBJECT",
-        "properties": {
-            "category": _STR, "severity": {"type": "STRING", "enum": ["Critical", "High", "Medium", "Low", "Informational"]},
-            "title": _STR, "description": _STR, "impact": _STR, "line_start": _INT, "line_end": _INT,
-            "remediation": _STR, "corrected_code": {"type": "STRING", "nullable": True},
-            "confidence": {"type": "STRING", "enum": ["high", "medium", "low"]},
-            "certainty": {"type": "STRING", "enum": ["confirmed", "possible"]}, "evidence": _STR},
-        "required": ["category", "severity", "title", "description", "evidence", "confidence"]}}},
+    "properties": {
+        "findings": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "category": _STR,
+                    "severity": {"type": "STRING", "enum": ["Critical", "High", "Medium", "Low", "Informational"]},
+                    "title": _STR,
+                    "description": _STR,
+                    "impact": _STR,
+                    "line_start": _INT,
+                    "line_end": _INT,
+                    "remediation": _STR,
+                    "corrected_code": {"type": "STRING", "nullable": True},
+                    "confidence": {"type": "STRING", "enum": ["high", "medium", "low"]},
+                    "certainty": {"type": "STRING", "enum": ["confirmed", "possible"]},
+                    "evidence": _STR,
+                },
+                "required": ["category", "severity", "title", "description", "evidence", "confidence"],
+            },
+        }
+    },
     "required": ["findings"],
 }
 
@@ -182,6 +220,7 @@ class GeminiProvider:
     def __init__(self, api_key: str, model: str | None = None):
         from google import genai
         from google.genai import types
+
         self.model = model or gemini_model()
         self._client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_S * 1000))
 
@@ -190,9 +229,16 @@ class GeminiProvider:
         try:
             safe = code.replace("</code>", "<\\/code>")
             resp = self._client.models.generate_content(
-                model=self.model, contents=f"Language: {language}\n<code>\n{safe}\n</code>",
-                config={"system_instruction": SYSTEM, "response_mime_type": "application/json",
-                        "response_schema": RESPONSE_SCHEMA, "temperature": 0.1, "max_output_tokens": 8192})
+                model=self.model,
+                contents=f"Language: {language}\n<code>\n{safe}\n</code>",
+                config={
+                    "system_instruction": SYSTEM,
+                    "response_mime_type": "application/json",
+                    "response_schema": RESPONSE_SCHEMA,
+                    "temperature": 0.1,
+                    "max_output_tokens": 8192,
+                },
+            )
             cands = getattr(resp, "candidates", None) or []
             if cands and "MAX_TOKENS" in str(getattr(cands[0], "finish_reason", "")):
                 raise AIError("AI response was truncated (token limit); try a smaller input")
@@ -212,6 +258,7 @@ class GeminiProvider:
 
 class UnavailableProvider:
     """A key is configured but the provider cannot be used (e.g. SDK missing). Never fabricates results."""
+
     name = "unavailable"
     is_mock = False
 
@@ -243,9 +290,17 @@ def provider_status() -> dict:
     """What Settings shows. Never includes the API key. state: gemini | mock | unavailable."""
     p = get_provider()
     if isinstance(p, GeminiProvider):
-        return {"provider": "gemini", "state": "gemini", "model": p.model, "message": "Gemini is configured. "
-                "Code you submit is sent to Google for analysis."}
+        return {
+            "provider": "gemini",
+            "state": "gemini",
+            "model": p.model,
+            "message": "Gemini is configured. " "Code you submit is sent to Google for analysis.",
+        }
     if isinstance(p, UnavailableProvider):
         return {"provider": "unavailable", "state": "unavailable", "model": None, "message": p.reason}
-    return {"provider": "mock", "state": "mock", "model": None,
-            "message": "GEMINI_API_KEY is not set. Set it in backend/.env and restart to enable real AI review."}
+    return {
+        "provider": "mock",
+        "state": "mock",
+        "model": None,
+        "message": "GEMINI_API_KEY is not set. Set it in backend/.env and restart to enable real AI review.",
+    }

@@ -31,13 +31,16 @@ def fake_gh(calls=None, patch=PATCH, contents=True, head=SHA):
                 raise HTTPException(404, "nf")
             return {"encoding": "base64", "size": len(FILE), "content": base64.b64encode(FILE.encode()).decode()}
         if path.endswith("/files"):
-            return [{"filename": "a.py", "status": "added", "patch": patch},
-                    {"filename": "README.md", "status": "modified", "patch": "@@ -1 +1 @@\n+hi"}]
+            return [
+                {"filename": "a.py", "status": "added", "patch": patch},
+                {"filename": "README.md", "status": "modified", "patch": "@@ -1 +1 @@\n+hi"},
+            ]
         if path.endswith("/reviews"):
             return {}
         if path.endswith("/branches"):
             return [{"name": "main", "protected": True}]
         return {"head": {"sha": head}}
+
     return fake
 
 
@@ -133,12 +136,15 @@ def test_publish_validates_positions_and_head(monkeypatch):
 
 def test_github_error_mapping(monkeypatch):
     import httpx
+
     c = client()
     for code, expected in ((403, 403), (404, 404), (500, 502)):
         monkeypatch.setattr(httpx, "request", lambda *a, _c=code, **k: SimpleNamespace(status_code=_c, json=lambda: {}))
         assert c.get("/github/repos").status_code == expected
+
     def boom(*a, **k):
         raise httpx.ConnectError("x")
+
     monkeypatch.setattr(httpx, "request", boom)
     assert c.get("/github/repos").status_code == 502
 
@@ -152,15 +158,24 @@ def hook_env(monkeypatch):
 def signed(body: bytes, secret="s3cret"):
     import hashlib
     import hmac
+
     return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
 def post_hook(body: dict, delivery="d1", event="pull_request", sig=None):
     import json
+
     raw = json.dumps(body).encode()
-    return TestClient(app).post("/github/webhook", content=raw, headers={
-        "X-Hub-Signature-256": sig or signed(raw), "X-GitHub-Event": event, "X-GitHub-Delivery": delivery,
-        "Content-Type": "application/json"})
+    return TestClient(app).post(
+        "/github/webhook",
+        content=raw,
+        headers={
+            "X-Hub-Signature-256": sig or signed(raw),
+            "X-GitHub-Event": event,
+            "X-GitHub-Delivery": delivery,
+            "Content-Type": "application/json",
+        },
+    )
 
 
 PR = {"action": "opened", "repository": {"full_name": "o/r"}, "pull_request": {"number": 7}}
@@ -201,13 +216,15 @@ def test_webhook_rejects_malformed_payload(hook_env):
 # ---------- audit additions ----------
 def test_parse_patch_edge_cases():
     # header without counts, "\ No newline" marker, blank context line, two hunks, CRLF content
-    patch = ("@@ -1 +1,2 @@\n-old\n+new\n+tail\n\\ No newline at end of file\n"
-             "@@ -10,3 +11,4 @@ def f():\n ctx\n\n+added\r\n ctx2")
+    patch = (
+        "@@ -1 +1,2 @@\n-old\n+new\n+tail\n\\ No newline at end of file\n"
+        "@@ -10,3 +11,4 @@ def f():\n ctx\n\n+added\r\n ctx2"
+    )
     added, visible = github.parse_patch(patch)
-    assert added == [(1, "new"), (2, "tail"), (13, "added")]          # \r stripped, numbering resets per hunk
-    assert visible == {1, 2, 11, 12, 13, 14}                          # blank context line counted as line 12
+    assert added == [(1, "new"), (2, "tail"), (13, "added")]  # \r stripped, numbering resets per hunk
+    assert visible == {1, 2, 11, 12, 13, 14}  # blank context line counted as line 12
     assert github.parse_patch("") == ([], set())
-    assert github.parse_patch("@@ -0,0 +1,1 @@\n+x\n") == ([(1, "x")], {1})   # trailing newline: no phantom line 2
+    assert github.parse_patch("@@ -0,0 +1,1 @@\n+x\n") == ([(1, "x")], {1})  # trailing newline: no phantom line 2
     assert github.parse_patch("stray header\n@@ -0,0 +1 @@\n+x") == ([(1, "x")], {1})
 
 
@@ -228,6 +245,7 @@ def test_all_pages_of_changed_files_are_fetched(monkeypatch):
         pages.append(kw["params"]["page"])
         n = 100 if kw["params"]["page"] == 1 else 1
         return [{"filename": f"f{kw['params']['page']}_{i}.txt", "status": "added", "patch": ""} for i in range(n)]
+
     monkeypatch.setattr(github, "gh", fake)
     assert len(github.list_pr_files("/repos/o/r/pulls/1", "tok")) == 101 and pages == [1, 2]
 
@@ -239,6 +257,7 @@ def test_publish_accepts_files_beyond_the_first_page(monkeypatch):
                 return [{"filename": f"d{i}.md", "status": "added", "patch": ""} for i in range(100)]
             return [{"filename": "late.py", "status": "added", "patch": PATCH}]
         return {"head": {"sha": SHA}}
+
     monkeypatch.setattr(github, "gh", fake)
     req = {"confirm": True, "head_sha": SHA, "comments": [{"path": "late.py", "line": 2, "body": "x"}]}
     assert client().post("/github/repos/o/r/pulls/1/publish", json=req).json() == {"published": 1}
@@ -253,10 +272,17 @@ def test_non_ascii_secrets_are_rejected_not_crashed(monkeypatch, hook_env):
     oc.cookies.set("oauth_state", "e")
     assert oc.get("/github/callback", params={"code": "x", "state": "é"}).status_code == 400
     import json
+
     body = json.dumps(PR).encode()
-    r = TestClient(app).post("/github/webhook", content=body, headers={
-        "X-Hub-Signature-256": "sha256=é".encode("latin-1"), "X-GitHub-Event": "pull_request",
-        "X-GitHub-Delivery": "ascii-1"})
+    r = TestClient(app).post(
+        "/github/webhook",
+        content=body,
+        headers={
+            "X-Hub-Signature-256": "sha256=é".encode("latin-1"),
+            "X-GitHub-Event": "pull_request",
+            "X-GitHub-Delivery": "ascii-1",
+        },
+    )
     assert r.status_code == 401
 
 
@@ -279,6 +305,7 @@ def test_webhook_failed_run_can_be_retried_but_successful_one_cannot(monkeypatch
 
     def boom(*a, **k):
         raise HTTPException(502, "github down")
+
     monkeypatch.setattr(github, "gh", boom)
     assert post_hook(PR, delivery="retry-1").json() == {"status": "queued"}
     assert state() == "failed"
@@ -289,15 +316,22 @@ def test_webhook_failed_run_can_be_retried_but_successful_one_cannot(monkeypatch
 
 
 def test_webhook_rejects_oversized_payload_before_reading_it(hook_env):
-    r = TestClient(app).post("/github/webhook", content=b"x" * 1_000_001, headers={
-        "X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "big-1", "X-Hub-Signature-256": "sha256=00"})
+    r = TestClient(app).post(
+        "/github/webhook",
+        content=b"x" * 1_000_001,
+        headers={"X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "big-1", "X-Hub-Signature-256": "sha256=00"},
+    )
     assert r.status_code == 413
 
 
 def test_webhook_signature_covers_the_exact_body(hook_env):
     import json
+
     raw = json.dumps(PR).encode()
     good = signed(raw)
-    r = TestClient(app).post("/github/webhook", content=raw + b" ", headers={
-        "X-Hub-Signature-256": good, "X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "tamper-1"})
+    r = TestClient(app).post(
+        "/github/webhook",
+        content=raw + b" ",
+        headers={"X-Hub-Signature-256": good, "X-GitHub-Event": "pull_request", "X-GitHub-Delivery": "tamper-1"},
+    )
     assert r.status_code == 401  # body modified after signing

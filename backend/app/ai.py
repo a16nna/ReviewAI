@@ -252,6 +252,12 @@ class GeminiProvider:
         except AIError:
             raise
         except Exception as e:  # noqa: BLE001 - mapped to a sanitized message
+            print(
+                f"[gemini] request failed: exception={type(e).__name__}, "
+                f"code={getattr(e, 'code', None)}, "
+                f"status={getattr(e, 'status', None)}",
+                flush=True,
+            )
             raise AIError(_classify(e)) from e
 
 

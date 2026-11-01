@@ -1,4 +1,4 @@
-﻿import os
+import os
 import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -127,4 +127,3 @@ init_db()
 def get_db():
     with SessionLocal() as s:
         yield s
-

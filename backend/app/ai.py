@@ -169,8 +169,7 @@ class MockProvider:
                 severity="Informational",
                 title="[MOCK] No real AI analysis performed",
                 description=(
-                    "No GEMINI_API_KEY is configured, so no real AI review ran. "
-                    "This placeholder is not an AI result."
+                    "No GEMINI_API_KEY is configured, so no real AI review ran. This placeholder is not an AI result."
                 ),
                 confidence="high",
             )
@@ -294,7 +293,7 @@ def provider_status() -> dict:
             "provider": "gemini",
             "state": "gemini",
             "model": p.model,
-            "message": "Gemini is configured. " "Code you submit is sent to Google for analysis.",
+            "message": "Gemini is configured. Code you submit is sent to Google for analysis.",
         }
     if isinstance(p, UnavailableProvider):
         return {"provider": "unavailable", "state": "unavailable", "model": None, "message": p.reason}

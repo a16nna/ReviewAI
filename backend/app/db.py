@@ -10,7 +10,24 @@ from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Tex
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./reviewai.db")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
+
+def _connection_args(database_url: str) -> dict:
+    if database_url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    if database_url.startswith(("postgresql://", "postgresql+")):
+        return {"options": "-csearch_path=reviewai,public"}
+    return {}
+
+
+connect_args = _connection_args(DATABASE_URL)
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -93,7 +110,7 @@ def init_db(url: str | None = None) -> None:
     cfg.set_main_option("script_location", str(Path(__file__).resolve().parent.parent / "alembic"))
     url = url or DATABASE_URL
     cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
-    eng = create_engine(url)
+    eng = create_engine(url, connect_args=_connection_args(url), pool_pre_ping=True)
     try:
         tables = inspect(eng).get_table_names()
         with eng.connect() as conn:

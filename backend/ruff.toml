@@ -1,0 +1,8 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "B"]
+ignore = ["B008"]  # FastAPI Depends() in defaults is idiomatic
+
+[lint.per-file-ignores]
+"tests/integration/*" = ["E501"]  # manual verification scripts with long, readable check lines

@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+google-genai
+httpx
+pytest
+ruff
+bandit
+alembic
+defusedxml
+cryptography

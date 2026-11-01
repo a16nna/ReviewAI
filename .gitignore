@@ -1,0 +1,28 @@
+.env
+*.db
+*.db.bak-*
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+node_modules/
+dist/
+backend/tools/java/*.jar
+playwright-report/
+test-results/
+
+# Python bytecode
+*.pyc
+*.pyo
+
+# Environment files
+.env.*
+!.env.example
+
+# Frontend build/cache
+.vite/
+coverage/
+
+# IDE files
+.vscode/
+.idea/

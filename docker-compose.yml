@@ -1,0 +1,16 @@
+# Unverified in the authoring environment (no Docker available). Usage: cp .env.example .env; docker compose up --build
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      FRONTEND_URL: http://localhost:8080
+      CORS_ORIGINS: http://localhost:8080
+      GITHUB_REDIRECT_URI: http://localhost:8080/api/github/callback
+    volumes: ["reviewai-data:/data"]
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:8080:80"]  # localhost only: the API has no authentication, never publish it on 0.0.0.0
+    depends_on: [backend]
+volumes:
+  reviewai-data:

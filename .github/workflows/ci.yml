@@ -1,0 +1,74 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - run: pip install -r requirements.txt pip-audit
+      - run: bash tools/setup.sh   # ESLint + Checkstyle (the runner already has a JDK)
+      - run: ruff check app tests
+      - run: bandit -q -r app
+      - run: python -m pytest -q
+      - run: pip-audit -r requirements.txt
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+        continue-on-error: true   # known transitive advisories, see docs/SECURITY_AND_PRIVACY.md
+  integration:
+    # Starts fake GitHub + backend + Vite and drives OAuth/cookies/CSRF/webhook through the proxy (38 checks).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - run: pip install -r backend/requirements.txt && bash backend/tools/setup.sh
+      - run: cd frontend && npm ci
+      - run: cd backend && python tests/integration/verify_stack.py
+  backend-windows:
+    # The only place native-Windows behaviour is actually exercised. Written without access to a Windows machine:
+    # treat the first runs as the real verification and drop continue-on-error once green.
+    runs-on: windows-latest
+    continue-on-error: true
+    defaults: { run: { working-directory: backend, shell: pwsh } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: choco install cppcheck -y --no-progress
+      - run: pip install -r requirements.txt
+      - run: .\tools\setup.ps1
+      - run: python -m pytest -q -rs
+  e2e:
+    # Playwright could not be executed where this project was authored; treat failures as informational until proven.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: pip install -r backend/requirements.txt
+      - run: cd frontend && npm ci && npx playwright install --with-deps chromium && npm run e2e
+        env: { CI: "true" }

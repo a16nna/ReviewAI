@@ -1,11 +1,7 @@
 ﻿{
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://reviewai-backend-8e8g.onrender.com/:path*"
-    },
-    {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

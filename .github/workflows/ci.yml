@@ -80,7 +80,8 @@ jobs:
           if (!(Test-Path $exe)) { throw "Cppcheck executable not found: $exe" }
 
           "CPPCHECK_PATH=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          & $exe --version      - run: pip install -r requirements.txt
+          & $exe --version
+      - run: python -m pip install -r requirements.txt
       - run: .\tools\setup.ps1
       - name: Diagnose Cppcheck on Windows
         run: |
@@ -105,6 +106,7 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: cd frontend && npm ci && npx playwright install --with-deps chromium && npm run e2e
         env: { CI: "true" }
+
 
 
 

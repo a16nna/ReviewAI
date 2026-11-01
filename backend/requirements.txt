@@ -10,3 +10,5 @@ bandit
 alembic
 defusedxml
 cryptography
+
+psycopg[binary]>=3.2,<4

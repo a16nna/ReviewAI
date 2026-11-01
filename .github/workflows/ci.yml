@@ -59,14 +59,28 @@ jobs:
         shell: pwsh
         run: |
           $msi = Join-Path $env:RUNNER_TEMP "cppcheck-2.22.0-x64-Setup.msi"
-          Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/cppcheck/cppcheck/2.22/cppcheck-2.22.0-x64-Setup.msi" -OutFile $msi
+          $url = "https://github.com/cppcheck-opensource/cppcheck/releases/download/2.22.0/cppcheck-2.22.0-x64-Setup.msi"
+
+          curl.exe -fL $url -o $msi
+          if ($LASTEXITCODE -ne 0) { throw "Cppcheck download failed." }
+
+          $expectedHash = "3929162bab7e71d1b9b18708ec054fb0188bfc8ea1660979ed95837f5a9f547b"
+          $actualHash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+
+          if ($actualHash -ne $expectedHash) {
+            throw "Cppcheck MSI checksum mismatch."
+          }
+
           $p = Start-Process msiexec.exe -ArgumentList @("/i", $msi, "/qn", "/norestart") -Wait -PassThru
-          if ($p.ExitCode -notin @(0, 3010)) { throw "Cppcheck installation failed: $($p.ExitCode)" }
+          if ($p.ExitCode -notin @(0, 3010)) {
+            throw "Cppcheck installation failed: $($p.ExitCode)"
+          }
+
           $exe = Join-Path $env:ProgramFiles "Cppcheck\cppcheck.exe"
-          if (!(Test-Path $exe)) { throw "Cppcheck executable not found at $exe" }
+          if (!(Test-Path $exe)) { throw "Cppcheck executable not found: $exe" }
+
           "CPPCHECK_PATH=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          & $exe --version
-      - run: pip install -r requirements.txt
+          & $exe --version      - run: pip install -r requirements.txt
       - run: .\tools\setup.ps1
       - name: Diagnose Cppcheck on Windows
         run: |
@@ -91,5 +105,6 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: cd frontend && npm ci && npx playwright install --with-deps chromium && npm run e2e
         env: { CI: "true" }
+
 
 

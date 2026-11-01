@@ -95,7 +95,8 @@ jobs:
 
           & $env:CPPCHECK_PATH --enable=warning,style,performance,portability --language=c++ '--template={line}|{severity}|{id}|{message}' --quiet $sample
 
-          Remove-Item $sample      - run: python -m pytest -q -rs
+          Remove-Item $sample
+      - run: python -m pytest -q -rs
   e2e:
     # Playwright could not be executed where this project was authored; treat failures as informational until proven.
     runs-on: ubuntu-latest
@@ -109,6 +110,7 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: cd frontend && npm ci && npx playwright install --with-deps chromium && npm run e2e
         env: { CI: "true" }
+
 
 
 

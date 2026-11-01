@@ -55,7 +55,17 @@ jobs:
         with: { python-version: "3.12" }
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: choco install cppcheck -y --no-progress
+      - name: Install Cppcheck 2.22
+        shell: pwsh
+        run: |
+          $msi = Join-Path $env:RUNNER_TEMP "cppcheck-2.22.0-x64-Setup.msi"
+          Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/cppcheck/cppcheck/2.22/cppcheck-2.22.0-x64-Setup.msi" -OutFile $msi
+          $p = Start-Process msiexec.exe -ArgumentList @("/i", $msi, "/qn", "/norestart") -Wait -PassThru
+          if ($p.ExitCode -notin @(0, 3010)) { throw "Cppcheck installation failed: $($p.ExitCode)" }
+          $exe = Join-Path $env:ProgramFiles "Cppcheck\cppcheck.exe"
+          if (!(Test-Path $exe)) { throw "Cppcheck executable not found at $exe" }
+          "CPPCHECK_PATH=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & $exe --version
       - run: pip install -r requirements.txt
       - run: .\tools\setup.ps1
       - name: Diagnose Cppcheck on Windows
@@ -81,4 +91,5 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: cd frontend && npm ci && npx playwright install --with-deps chromium && npm run e2e
         env: { CI: "true" }
+
 
